@@ -29,6 +29,7 @@ import okhttp3.Response;
  */
 public class CloudApi{
     private String hostName;
+    //test commit
     //TODO mettere https
     private static CloudApi instance = null;
     private SharedPreferences settings;
