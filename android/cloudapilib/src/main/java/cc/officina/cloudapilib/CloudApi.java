@@ -5,7 +5,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.util.Base64;
-import android.util.Log;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -121,7 +120,6 @@ public class CloudApi{
 
     private Request retrofitBuilder(Method method, final String endpoint,final Map<String, String> headers, final Map<String, Object> params, Context context, final ParameterEncoding parameterEncoding, FunOrigin funOrigin){
         if (hostName == null){
-            Log.e("CLOUD_API", "settare l'hostname");
             hostName = settings.getString("hostName", "");
         }
 
@@ -213,7 +211,6 @@ public class CloudApi{
                              String appPackage,
                              int settingsMode,
                              final RunnableCallback callback) {
-
         settings = configSharedPref(appPackage, settingsMode, context);
         editor = settings.edit();
         authMethod = method;
@@ -279,10 +276,8 @@ public class CloudApi{
 
                 break;
             case None:
-                Log.e("ClouApi", "authenticationtype NONE");
                 break;
             default:
-                Log.e("ClouApi", "authenticationtype non riconosciuto");
                 break;
         }
         editor.putString("auth_type", authenticationType.toString());
@@ -296,7 +291,7 @@ public class CloudApi{
             @Override
             public void onResponse(Call call, Response response) {
                 try {
-                    if (response.code() >= 200 && response.code() <= 300){
+                    if (response.code() >= 200 && response.code() < 400){
                         JsonParser parser = new JsonParser();
                         JsonObject responseObj = parser.parse(response.body().string()).getAsJsonObject();
                         editor.putString("token", responseObj.get("token").getAsString());
@@ -331,7 +326,7 @@ public class CloudApi{
             @Override
             public void onResponse(Call call, Response response) throws IOException {
                 try {
-                    if (response.code() >=200 && response.code() <= 300){
+                    if (response.code() >=200 && response.code() < 400){
                         JsonParser parser = new JsonParser();
                         JsonObject responseObj = parser.parse(response.body().string()).getAsJsonObject();
                         callback.success(response.code(), responseObj);
@@ -356,15 +351,18 @@ public class CloudApi{
             public void onResponse(Call call, Response response) throws IOException {
 
              try {
-                 if (response.code() >= 200 && response.code() <= 300){
+                 if (response.code() >= 200 && response.code() < 400){
                      JsonParser parser = new JsonParser();
                      JsonObject responseObj = parser.parse(response.body().string()).getAsJsonObject();
+                     editor.putString("token", responseObj.get("access_token").getAsString());
+                     editor.putString("refresh_token", responseObj.get("refresh_token").getAsString());
+                     editor.putBoolean("isAuth", true);
+                     editor.apply();
                      callback.success(response.code(), responseObj);
                  }else{
                      callback.failure(response.code(), new Exception(response.message()));
                  }
              }catch(MalformedJsonException e){
-                Log.d("Cloud_Api", e.getMessage());
                  callback.failure(500, e);
              }finally {
                  response.body().close();
@@ -395,15 +393,13 @@ public class CloudApi{
 
                     try{
                         if (response.code() == 401){
-                            authenticate(settings.getString("auth_endpoint", ""), authMethod, new HashMap<String, String>(), null, ParameterEncoding.URL, context,appPackage, configMode, new RunnableCallback() {
+                            // TODO: 20/10/16 bug in caso di reauth
+                            Map<String,Object> params = new HashMap<>();
+                            params.put("username", settings.getString("username",""));
+                            params.put("password", settings.getString("password",""));
+                            authenticate(settings.getString("auth_endpoint", ""), authMethod, new HashMap<String, String>(), params, ParameterEncoding.URL, context,appPackage, configMode, new RunnableCallback() {
                                 @Override
                                 public void success(int statusCode, Object responseObject) {
-                                    JsonParser parser = new JsonParser();
-                                    JsonObject jsonObject = parser.parse(responseObject.toString()).getAsJsonObject();
-                                    editor.putString("token", jsonObject.get("access_token").getAsString());
-                                    editor.putString("refresh_token", jsonObject.get("refresh_token").getAsString());
-                                    editor.putBoolean("isAuth", true);
-                                    editor.apply();
                                     action(endpoint, method, parameters, encoding, context, headers,appPackage,configMode, funOrigin,callback);
                                 }
 
@@ -411,8 +407,7 @@ public class CloudApi{
                                 public void failure(int statusCode, Exception e) {
                                     if (statusCode == 400){
                                         settings.edit().clear().apply();
-                                        RealmConfiguration realmConfiguration = new RealmConfiguration.Builder(context).deleteRealmIfMigrationNeeded().build();
-                                        Realm.setDefaultConfiguration(realmConfiguration);
+                                        Realm.init(context);
                                         Realm realm = Realm.getDefaultInstance();
                                         realm.beginTransaction();
                                         realm.deleteAll();
@@ -423,7 +418,7 @@ public class CloudApi{
                                 }
                             });
                         }else{
-                            if (response.code() >= 200 && response.code() <= 300) {
+                            if (response.code() >= 200 && response.code() < 400) {
                                 callback.success(response.code(), response.body().string());
                             }else{
                                 callback.failure(response.code(), new Exception(response.message()));
