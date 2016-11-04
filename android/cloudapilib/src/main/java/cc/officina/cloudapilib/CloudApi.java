@@ -394,7 +394,6 @@ public class CloudApi{
 
                     try{
                         if (response.code() == 401){
-                            // TODO: 20/10/16 bug in caso di reauth
                             Map<String,Object> params = new HashMap<>();
                             params.put("username", settings.getString("username",""));
                             params.put("password", settings.getString("password",""));
