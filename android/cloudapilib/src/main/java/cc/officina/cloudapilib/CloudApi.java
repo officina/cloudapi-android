@@ -219,7 +219,7 @@ public class CloudApi{
         Request request;
         switch (authenticationType){
             case Facebook:
-                editor.putString("username", params.get("username").toString());
+                editor.putString("login", params.get("username").toString());
                 editor.putString("password", params.get("token").toString());
                 editor.putString("token", params.get("token").toString());
 
@@ -395,7 +395,7 @@ public class CloudApi{
                     try{
                         if (response.code() == 401){
                             Map<String,Object> params = new HashMap<>();
-                            params.put("username", settings.getString("username",""));
+                            params.put("username", settings.getString("login",""));
                             params.put("password", settings.getString("password",""));
                             authenticate(settings.getString("auth_endpoint", ""), authMethod, new HashMap<String, String>(), params, ParameterEncoding.URL, context,appPackage, configMode, new RunnableCallback() {
                                 @Override
