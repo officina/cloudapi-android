@@ -127,6 +127,7 @@ public class CloudApi{
         if (funOrigin == FunOrigin.Action){
             switch (authenticationType){
                 case Facebook:
+                    headers.put("X-Auth-Token", settings.getString("token", ""));
                     break;
                 case Standard:
                     headers.put("X-Auth-Token", settings.getString("token", ""));
@@ -330,6 +331,9 @@ public class CloudApi{
                     if (response.code() >=200 && response.code() < 400){
                         JsonParser parser = new JsonParser();
                         JsonObject responseObj = parser.parse(response.body().string()).getAsJsonObject();
+                        editor.putString("token", responseObj.get("token").getAsString());
+                        editor.putBoolean("isAuth", true);
+                        editor.apply();
                         callback.success(response.code(), responseObj);
                     }else{
                         callback.failure(response.code(), new Exception(response.message()));
