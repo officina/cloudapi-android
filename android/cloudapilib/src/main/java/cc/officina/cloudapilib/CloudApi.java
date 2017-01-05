@@ -220,10 +220,6 @@ public class CloudApi{
         Request request;
         switch (authenticationType){
             case Facebook:
-                editor.putString("login", params.get("username").toString());
-                editor.putString("password", params.get("token").toString());
-                editor.putString("token", params.get("token").toString());
-
                 request = retrofitBuilder(method,endpoint,headers, params,context, encoding, FunOrigin.Authentication);
                 request = request.newBuilder().method(method.name(),requestBody).build();
 
