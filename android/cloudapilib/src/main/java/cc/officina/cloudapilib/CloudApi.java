@@ -13,9 +13,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-
 import io.realm.Realm;
-import io.realm.RealmConfiguration;
 import okhttp3.Call;
 import okhttp3.Callback;
 import okhttp3.MediaType;
@@ -27,7 +25,7 @@ import okhttp3.Response;
 /**
  * Created by riccardogazzea on 06/06/16.
  */
-public class CloudApi{
+public class CloudApi {
     private String hostName;
     //test commit
     //TODO mettere https
@@ -35,9 +33,7 @@ public class CloudApi{
     private SharedPreferences settings;
     private SharedPreferences.Editor editor;
     private AuthenticationType authenticationType;
-    private Method authMethod;
     private OkHttpClient client = new OkHttpClient.Builder().connectTimeout(10, TimeUnit.SECONDS).build();
-    private String APP_PACKAGE;
 
     public Class getFirstActivity() {
         return firstActivity;
@@ -48,23 +44,20 @@ public class CloudApi{
     }
 
     private Class firstActivity;
-    private int ACCESS_MODE;
 
     protected CloudApi() {
         // Exists only to defeat instantiation.
     }
-    public static CloudApi getInstance() {
+    public static CloudApi getInstance(Context context) {
         if(instance == null) {
             instance = new CloudApi();
             instance.authenticationType = AuthenticationType.Oauth2;
-            instance.authMethod = Method.POST;
-            instance.ACCESS_MODE = Context.MODE_PRIVATE;
+            instance.settings = configSharedPref(context.getPackageName(), context);
         }
         return instance;
     }
 
     public enum Method{
-
         GET,
         POST,
         PUT,
@@ -85,26 +78,9 @@ public class CloudApi{
     public enum FunOrigin{
         Action,
         Authentication,
-        Register
     }
 
-    public String getAPP_PACKAGE() {
-        return APP_PACKAGE;
-    }
-
-    public void setAPP_PACKAGE(String APP_PACKAGE) {
-        this.APP_PACKAGE = APP_PACKAGE;
-    }
-
-    public int getACCESS_MODE() {
-        return ACCESS_MODE;
-    }
-
-    public void setACCESS_MODE(int ACCESS_MODE) {
-        this.ACCESS_MODE = ACCESS_MODE;
-    }
-
-    public String getHostName(){
+    String getHostName(){
         return this.hostName;
     }
     public void setHostName(String hostName){
@@ -119,7 +95,7 @@ public class CloudApi{
         this.authenticationType = authenticationType;
     }
 
-    private Request retrofitBuilder(Method method, final String endpoint,final Map<String, String> headers, final Map<String, Object> params, Context context, final ParameterEncoding parameterEncoding, FunOrigin funOrigin){
+    private Request retrofitBuilder(Method method, final String endpoint,final Map<String, String> headers, final Map<String, Object> params, final ParameterEncoding parameterEncoding, FunOrigin funOrigin){
         if (hostName == null){
             hostName = settings.getString("hostName", "");
         }
@@ -204,26 +180,20 @@ public class CloudApi{
     }
 
 
-    public void authenticate(String endpoint,
-                             final Method method,
+    void authenticate(String endpoint,
                              Map<String, String> headers,
                              Map<String, Object> params ,
                              final ParameterEncoding encoding,
-                             final Context context,
-                             String appPackage,
-                             int settingsMode,
                              final RunnableCallback callback) {
-        settings = configSharedPref(appPackage, settingsMode, context);
         editor = settings.edit();
-        authMethod = method;
         RequestBody requestBody = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), "");
         Request request;
         switch (authenticationType){
             case Facebook:
-                request = retrofitBuilder(method,endpoint,headers, params,context, encoding, FunOrigin.Authentication);
-                request = request.newBuilder().method(method.name(),requestBody).build();
+                request = retrofitBuilder(Method.POST,endpoint,headers, params, encoding, FunOrigin.Authentication);
+                request = request.newBuilder().method(Method.POST.name(),requestBody).build();
 
-                authenticateFb(callback, method, request);
+                authenticateFb(callback, request);
                 break;
             case Oauth2:
                 try{
@@ -257,17 +227,17 @@ public class CloudApi{
                 }catch (Exception e){
                     e.printStackTrace();
                 }
-                request = retrofitBuilder(method, endpoint,headers, params,context,encoding, FunOrigin.Authentication);
-                request = request.newBuilder().method(method.name(),requestBody).build();
+                request = retrofitBuilder(Method.POST, endpoint,headers, params, encoding, FunOrigin.Authentication);
+                request = request.newBuilder().method(Method.POST.name(),requestBody).build();
 
-                authenticateOauth2(callback, method,request);
+                authenticateOauth2(callback,request);
                 break;
             case Standard:
                 try{
-                    request = retrofitBuilder(method, endpoint, headers, params,context,encoding, FunOrigin.Authentication);
-                    request = request.newBuilder().method(method.name(),requestBody).build();
+                    request = retrofitBuilder(Method.POST, endpoint, headers, params,encoding, FunOrigin.Authentication);
+                    request = request.newBuilder().method(Method.POST.name(),requestBody).build();
 
-                    authenticateStandard(callback, method, request);
+                    authenticateStandard(callback, request);
                 }catch (Exception e){
                     e.printStackTrace();
                 }
@@ -284,7 +254,7 @@ public class CloudApi{
     }
 
 
-    private void authenticateStandard(final RunnableCallback callback, Method method, final Request request){
+    private void authenticateStandard(final RunnableCallback callback, final Request request){
         client.newCall(request).enqueue(new Callback() {
             @Override
             public void onResponse(Call call, Response response) {
@@ -314,7 +284,7 @@ public class CloudApi{
         });
     }
 
-    private void authenticateFb(final RunnableCallback callback, Method method, Request request){
+    private void authenticateFb(final RunnableCallback callback, Request request){
         client.newCall(request).enqueue(new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
@@ -341,7 +311,7 @@ public class CloudApi{
         });
     }
 
-    private void authenticateOauth2(final RunnableCallback callback, Method method, Request request){
+    private void authenticateOauth2(final RunnableCallback callback, Request request){
         client.newCall(request).enqueue(new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
@@ -377,9 +347,7 @@ public class CloudApi{
 
 
     public void action(final String endpoint, final Method method, final Map<String, Object> parameters, final ParameterEncoding encoding, final Context context, final Map<String, String> headers, final String appPackage, final int configMode, final FunOrigin funOrigin, final RunnableCallback callback){
-        settings = configSharedPref(appPackage, configMode, context);
-
-        final Request request = retrofitBuilder(method, endpoint, headers,parameters,context,encoding, funOrigin);
+        final Request request = retrofitBuilder(method, endpoint, headers,parameters,encoding, funOrigin);
 
         if (request != null){
             client.newCall(request).enqueue(new Callback() {
@@ -397,7 +365,7 @@ public class CloudApi{
                             Map<String,Object> params = new HashMap<>();
                             params.put("username", settings.getString("login",""));
                             params.put("password", settings.getString("password",""));
-                            authenticate(settings.getString("auth_endpoint", ""), authMethod, new HashMap<String, String>(), params, ParameterEncoding.URL, context,appPackage, configMode, new RunnableCallback() {
+                            authenticate(settings.getString("auth_endpoint", ""), new HashMap<String, String>(), params, ParameterEncoding.URL, new RunnableCallback() {
                                 @Override
                                 public void success(int statusCode, Object responseObject) {
                                     action(endpoint, method, parameters, encoding, context, headers,appPackage,configMode, funOrigin,callback);
@@ -446,8 +414,8 @@ public class CloudApi{
         return endpoint;
     }
 
-    public SharedPreferences configSharedPref(String appPackage, int mode, Context context){
-        return context.getSharedPreferences(appPackage, mode);
+    public static SharedPreferences configSharedPref(String appPackage, Context context){
+        return context.getSharedPreferences(appPackage, Context.MODE_PRIVATE);
     }
 }
 
