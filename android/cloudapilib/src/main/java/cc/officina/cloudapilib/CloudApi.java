@@ -33,6 +33,7 @@ public class CloudApi {
     private SharedPreferences settings;
     private SharedPreferences.Editor editor;
     private AuthenticationType authenticationType;
+    private Context context;
     private OkHttpClient client = new OkHttpClient.Builder().connectTimeout(10, TimeUnit.SECONDS).build();
 
     public Class getFirstActivity() {
@@ -52,6 +53,7 @@ public class CloudApi {
         if(instance == null) {
             instance = new CloudApi();
             instance.authenticationType = AuthenticationType.Oauth2;
+            instance.context = context;
             instance.settings = configSharedPref(context.getPackageName(), context);
         }
         return instance;
@@ -180,7 +182,7 @@ public class CloudApi {
     }
 
 
-    void authenticate(String endpoint,
+    public void authenticate(String endpoint,
                              Map<String, String> headers,
                              Map<String, Object> params ,
                              final ParameterEncoding encoding,
@@ -346,7 +348,7 @@ public class CloudApi {
 
 
 
-    public void action(final String endpoint, final Method method, final Map<String, Object> parameters, final ParameterEncoding encoding, final Context context, final Map<String, String> headers, final String appPackage, final int configMode, final FunOrigin funOrigin, final RunnableCallback callback){
+    public void action(final String endpoint, final Method method, final Map<String, Object> parameters, final ParameterEncoding encoding, final Map<String, String> headers,final FunOrigin funOrigin, final RunnableCallback callback){
         final Request request = retrofitBuilder(method, endpoint, headers,parameters,encoding, funOrigin);
 
         if (request != null){
@@ -368,7 +370,7 @@ public class CloudApi {
                             authenticate(settings.getString("auth_endpoint", ""), new HashMap<String, String>(), params, ParameterEncoding.URL, new RunnableCallback() {
                                 @Override
                                 public void success(int statusCode, Object responseObject) {
-                                    action(endpoint, method, parameters, encoding, context, headers,appPackage,configMode, funOrigin,callback);
+                                    action(endpoint, method, parameters, encoding, headers, funOrigin,callback);
                                 }
 
                                 @Override
