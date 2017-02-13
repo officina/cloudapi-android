@@ -375,7 +375,9 @@ public class CloudApi {
 
                                 @Override
                                 public void failure(int statusCode, Exception e) {
-                                    if (statusCode == 400){
+                                    if (statusCode == 401){
+                                        //se entro in questa casistica significa che le credenziali dell'account sono state cambiate
+                                        // nel server e non in locale quindi ho bisogno che l'utente riesegua il login
                                         settings.edit().clear().apply();
                                         Realm.init(context);
                                         Realm realm = Realm.getDefaultInstance();
