@@ -6,5 +6,5 @@ package cc.officina.cloudapilib;
 public interface RunnableCallback {
     void success(int statusCode, Object responseObject);
 
-    void failure(int statusCode, Exception e);
+    void failure(int statusCode, Object e);
 }

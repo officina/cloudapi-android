@@ -67,7 +67,8 @@ public class CloudApi {
     }
     public enum ParameterEncoding{
         JSON,
-        URL
+        URL,
+        RECOVER_PASSWORD
     }
     public enum AuthenticationType{
 
@@ -166,6 +167,14 @@ public class CloudApi {
                                 }
 
                                 break;
+                            case RECOVER_PASSWORD:
+                                String jsons = params.get("email").toString();
+                                RequestBody requestBodys = RequestBody.create(MediaType.parse("text/plain"), jsons);
+
+                                request  = request.newBuilder()
+                                        .url(getHostName()+endpoint)
+                                        .method(method.name(), requestBodys)
+                                        .build();
                             default:
                                 break;
                         }
@@ -374,7 +383,7 @@ public class CloudApi {
                                 }
 
                                 @Override
-                                public void failure(int statusCode, Exception e) {
+                                public void failure(int statusCode, Object e) {
                                     if (statusCode == 401){
                                         //se entro in questa casistica significa che le credenziali dell'account sono state cambiate
                                         // nel server e non in locale quindi ho bisogno che l'utente riesegua il login
@@ -393,7 +402,7 @@ public class CloudApi {
                             if (response.code() >= 200 && response.code() < 400) {
                                 callback.success(response.code(), response.body().string());
                             }else{
-                                callback.failure(response.code(), new Exception(response.message()));
+                                callback.failure(response.code(), response.message());
                             }
                         }
                     }finally {
