@@ -277,7 +277,7 @@ public class CloudApi {
                         editor.apply();
                         callback.success(response.code(),responseObj);
                     }else{
-                        callback.failure(response.code(), new Exception(response.message()));
+                        callback.failure(response.code(), response.message());
                     }
                 } catch (IOException e) {
                     e.printStackTrace();
@@ -290,7 +290,7 @@ public class CloudApi {
 
             @Override
             public void onFailure(Call call, IOException e) {
-                callback.failure(0, new Exception(e.getMessage()));
+                callback.failure(0, e.getMessage());
             }
         });
     }
@@ -299,7 +299,7 @@ public class CloudApi {
         client.newCall(request).enqueue(new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
-                callback.failure(0, new Exception(e.getMessage()));
+                callback.failure(0, e.getMessage());
             }
 
             @Override
@@ -313,7 +313,7 @@ public class CloudApi {
                         editor.apply();
                         callback.success(response.code(), responseObj);
                     }else{
-                        callback.failure(response.code(), new Exception(response.message()));
+                        callback.failure(response.code(), response.message());
                     }
                 }finally {
                     response.body().close();
@@ -326,7 +326,7 @@ public class CloudApi {
         client.newCall(request).enqueue(new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
-                callback.failure(0, new Exception(e.getMessage()));
+                callback.failure(0, e.getMessage());
             }
 
             @Override
@@ -342,7 +342,7 @@ public class CloudApi {
                      editor.apply();
                      callback.success(response.code(), responseObj);
                  }else{
-                     callback.failure(response.code(), new Exception(response.message()));
+                     callback.failure(response.code(), response.message());
                  }
              }catch(MalformedJsonException e){
                  callback.failure(500, e);
@@ -402,7 +402,7 @@ public class CloudApi {
                             if (response.code() >= 200 && response.code() < 400) {
                                 callback.success(response.code(), response.body().string());
                             }else{
-                                callback.failure(response.code(), response.message());
+                                callback.failure(response.code(), response.body().string());
                             }
                         }
                     }finally {
