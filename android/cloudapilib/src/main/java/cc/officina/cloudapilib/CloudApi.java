@@ -16,6 +16,7 @@ import java.util.concurrent.TimeUnit;
 import io.realm.Realm;
 import okhttp3.Call;
 import okhttp3.Callback;
+import okhttp3.FormBody;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -68,6 +69,7 @@ public class CloudApi {
     public enum ParameterEncoding{
         JSON,
         URL,
+        ARRAY,
         RECOVER_PASSWORD
     }
     public enum AuthenticationType{
@@ -121,6 +123,16 @@ public class CloudApi {
        Request request = new Request.Builder().url(getHostName()+endpoint).build();
         try{
             switch (parameterEncoding){
+                            case ARRAY:
+                                Gson gsonArray = new Gson();
+                                String array = gsonArray.toJson(params.get(""));
+                                RequestBody requestBodyArray = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), array);
+
+                                request  = request.newBuilder()
+                                        .url(getHostName()+endpoint)
+                                        .method(method.name(), requestBodyArray)
+                                        .build();
+                                break;
                             case JSON:
                                 Gson gson = new Gson();
                                 String json = gson.toJson(params);
@@ -154,10 +166,21 @@ public class CloudApi {
                                                 .build();
                                         break;
                                     case POST:
-                                        request = request.newBuilder()
-                                                .url(url)
-                                                .post(RequestBody.create(MediaType.parse("text/plain"), ""))
-                                                .build();
+                                        if (funOrigin == FunOrigin.Authentication){
+                                            RequestBody formBody = new FormBody.Builder()
+                                                    .addEncoded("username", params.get("username").toString())
+                                                    .add("password", params.get("password").toString())
+                                                    .build();
+                                            request = new Request.Builder()
+                                                    .url(getHostName()+endpoint)
+                                                    .post(formBody)
+                                                    .build();
+                                        }else{
+                                            request = request.newBuilder()
+                                                    .url(url)
+                                                    .post(RequestBody.create(MediaType.parse("text/plain"), ""))
+                                                    .build();
+                                        }
                                         break;
                                     default:
                                         request = request.newBuilder()
@@ -197,7 +220,7 @@ public class CloudApi {
                              final ParameterEncoding encoding,
                              final RunnableCallback callback) {
         editor = settings.edit();
-        RequestBody requestBody = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), "");
+        RequestBody requestBody = RequestBody.create(MediaType.parse("application/x-www-form-urlencoded; charset=utf-8"), getQueryParams(params, "").split("\\?")[1]);
         Request request;
         switch (authenticationType){
             case Facebook:
