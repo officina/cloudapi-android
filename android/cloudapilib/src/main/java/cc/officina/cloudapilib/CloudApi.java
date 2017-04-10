@@ -10,6 +10,8 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.google.gson.stream.MalformedJsonException;
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -18,6 +20,7 @@ import okhttp3.Call;
 import okhttp3.Callback;
 import okhttp3.FormBody;
 import okhttp3.MediaType;
+import okhttp3.MultipartBody;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.RequestBody;
@@ -167,10 +170,13 @@ public class CloudApi {
                                         break;
                                     case POST:
                                         if (funOrigin == FunOrigin.Authentication){
+                                            String password = URLEncoder.encode(params.get("password").toString(), "UTF-8");
+                                            String username = URLEncoder.encode(params.get("username").toString(), "UTF-8");
                                             RequestBody formBody = new FormBody.Builder()
-                                                    .addEncoded("username", params.get("username").toString())
-                                                    .add("password", params.get("password").toString())
+                                                    .addEncoded("username", username)
+                                                    .addEncoded("password", password)
                                                     .build();
+                                           // RequestBody formBody = new MultipartBody.Builder().setType(MultipartBody.FORM).addFormDataPart("username", params.get("username").toString()).addFormDataPart("password", params.get("password").toString()).build();
                                             request = new Request.Builder()
                                                     .url(getHostName()+endpoint)
                                                     .post(formBody)
