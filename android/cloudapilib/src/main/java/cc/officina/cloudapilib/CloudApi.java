@@ -4,38 +4,40 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.support.compat.*;
+import android.support.compat.BuildConfig;
 import android.util.Base64;
-import com.google.gson.Gson;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
-import com.google.gson.stream.MalformedJsonException;
-import java.io.IOException;
+import com.loopj.android.http.AsyncHttpClient;
+import com.loopj.android.http.JsonHttpResponseHandler;
+import com.loopj.android.http.RequestParams;
+import com.loopj.android.http.ResponseHandlerInterface;
+import com.loopj.android.http.TextHttpResponseHandler;
+
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.io.UnsupportedEncodingException;
+import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
+import cz.msebera.android.httpclient.Header;
+import cz.msebera.android.httpclient.HttpEntity;
+import cz.msebera.android.httpclient.entity.ContentType;
+import cz.msebera.android.httpclient.entity.StringEntity;
 import io.realm.Realm;
-import okhttp3.Call;
-import okhttp3.Callback;
-import okhttp3.FormBody;
-import okhttp3.MediaType;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.RequestBody;
-import okhttp3.Response;
 
 /**
  * Created by riccardogazzea on 06/06/16.
  */
 public class CloudApi {
     private String hostName;
-    //test commit
-    //TODO mettere https
     private static CloudApi instance = null;
     private SharedPreferences settings;
     private SharedPreferences.Editor editor;
     private AuthenticationType authenticationType;
     private Context context;
-    private OkHttpClient client = new OkHttpClient.Builder().connectTimeout(10, TimeUnit.SECONDS).build();
+    private AsyncHttpClient client = new AsyncHttpClient();
 
     public Class getFirstActivity() {
         return firstActivity;
@@ -56,6 +58,9 @@ public class CloudApi {
             instance.authenticationType = AuthenticationType.Oauth2;
             instance.context = context;
             instance.settings = configSharedPref(context.getPackageName(), context);
+            if (BuildConfig.DEBUG){
+                instance.client.setProxy(System.getProperty("http.proxyHost"), Integer.parseInt(System.getProperty("http.proxyPort")));
+            }
         }
         return instance;
     }
@@ -69,7 +74,6 @@ public class CloudApi {
     public enum ParameterEncoding{
         JSON,
         URL,
-        ARRAY,
         RECOVER_PASSWORD
     }
     public enum AuthenticationType{
@@ -100,12 +104,225 @@ public class CloudApi {
         this.authenticationType = authenticationType;
     }
 
-    private Request retrofitBuilder(Method method, final String endpoint,final Map<String, String> headers, final Map<String, Object> params, final ParameterEncoding parameterEncoding, FunOrigin funOrigin){
-        if (hostName == null){
-            hostName = settings.getString("hostName", "");
+    public void authenticate(String endpoint,
+                             Map<String, String> headers,
+                             Map<String, Object> params ,
+                             final RunnableCallback callback) {
+        editor = settings.edit();
+        if (authenticationType == AuthenticationType.Oauth2){
+            try{
+                if (params != null){
+                    if (params.get("grant_type").toString().equals("refresh_token")){
+                        String authorization = "";
+                        String clientId = params.get("client_id").toString();
+                        String clientSecret = params.get("client_secret").toString();
+                        byte[] data = (clientId+":"+clientSecret).getBytes();
+                        authorization ="Basic "+ Base64.encodeToString(data, Base64.DEFAULT);
+                        authorization = authorization.trim();
+                        params.put("refresh_token", settings.getString("refresh_token", ""));
+                        params.put("scope", settings.getString("scope", ""));
+                        headers.put("Authorization", authorization);
+                    }
+                }else{
+                    params = new HashMap<>();
+                    params.put("grant_type", "refresh_token");
+                    params.put("client_id", settings.getString("clientId",""));
+                    params.put("client_secret", settings.getString("clientSecret",""));
+                    params.put("refresh_token", settings.getString("refresh_token", ""));
+                    params.put("scope", settings.getString("scope", ""));
+                    String authorization = "";
+                    String clientId = params.get("client_id").toString();
+                    String clientSecret = params.get("client_secret").toString();
+                    byte[] data = (clientId+":"+clientSecret).getBytes();
+                    authorization ="Basic "+ Base64.encodeToString(data, Base64.DEFAULT);
+                    authorization = authorization.trim();
+                    headers.put("Authorization", authorization);
+                }
+            }catch (Exception e){
+                e.printStackTrace();
+            }
         }
+        final RequestParams requestParams = new RequestParams();
+        if (params != null && !params.isEmpty()){
+            for (Map.Entry<String, Object> entry : params.entrySet()){
+                requestParams.put(entry.getKey(), entry.getValue());
+            }
+        }
+        headers.put("Content-type", "application/x-www-form-urlencoded");
+        buildHeaders(headers);
+        client.post(getHostName() + endpoint, requestParams, new JsonHttpResponseHandler(){
+            @Override
+            public void onSuccess(int statusCode, Header[] headers, JSONObject response) {
+                super.onSuccess(statusCode, headers, response);
+                if (statusCode >= 200 && statusCode < 400){
+                    callback.success(statusCode, response);
+                    if (authenticationType == AuthenticationType.Standard || authenticationType == AuthenticationType.Facebook){
+                        try {
+                            editor.putString("token", response.getString("token"));
+                            editor.putBoolean("isAuth", true);
+                            editor.apply();
+                        } catch (JSONException e) {
+                            e.printStackTrace();
+                        }
+                    }else if(authenticationType == AuthenticationType.Oauth2){
+                        try {
+                            editor.putString("token", response.getString("access_token"));
+                            editor.putString("refresh_token", response.getString("refresh_token"));
+                            editor.putBoolean("isAuth", true);
+                            editor.apply();
+                        } catch (JSONException e) {
+                            e.printStackTrace();
+                        }
+                    }
+                }else{
+                    callback.failure(statusCode, response);
+                }
+            }
 
-        if (funOrigin == FunOrigin.Action){
+            @Override
+            public void onFailure(int statusCode, Header[] headers, Throwable throwable, JSONObject errorResponse) {
+                super.onFailure(statusCode, headers, throwable, errorResponse);
+                callback.failure(statusCode, errorResponse);
+            }
+        });
+        editor.putString("auth_type", authenticationType.toString());
+        editor.putString("auth_endpoint", endpoint);
+        editor.apply();
+    }
+
+    private void buildHeaders(Map<String, String> headers){
+        if (headers != null && !headers.isEmpty()){
+            client.removeAllHeaders();
+            for (Map.Entry<String, String> entry : headers.entrySet()){
+                headers.put(entry.getKey(), entry.getValue());
+                client.addHeader(entry.getKey(), entry.getValue());
+            }
+        }
+    }
+
+    private StringEntity buildParams(Map<String, Object> map){
+        JSONObject object = new JSONObject(map);
+        return new StringEntity(object.toString(), Charset.defaultCharset());
+    };
+
+    private void loginEaction(final String endpoint, final Method method, final Map<String, Object> parameters, final ParameterEncoding encoding, final Map<String, String> headers, final FunOrigin funOrigin, final RunnableCallback callback){
+        Map<String,Object> params = new HashMap<>();
+        params.put("username", settings.getString("login",""));
+        params.put("password", settings.getString("password",""));
+        authenticate(settings.getString("auth_endpoint", ""), new HashMap<String, String>(), params, new RunnableCallback() {
+            @Override
+            public void success(int statusCode, Object responseObject) {
+                action(endpoint, method, parameters, encoding, headers, funOrigin,callback);
+            }
+
+            @Override
+            public void failure(int statusCode, Object e) {
+                if (statusCode == 401){
+                    //se entro in questa casistica significa che le credenziali dell'account sono state cambiate
+                    // nel server e non in locale quindi ho bisogno che l'utente riesegua il login
+                    settings.edit().clear().apply();
+                    Realm.init(context);
+                    Realm realm = Realm.getDefaultInstance();
+                    realm.beginTransaction();
+                    realm.deleteAll();
+                    realm.commitTransaction();
+                    ((Activity)context).finishAffinity();
+                    context.startActivity(new Intent(context, getFirstActivity()));
+                }
+            }
+        });
+    }
+
+    public void action(final String endpoint, final Method method, final Map<String, Object> parameters, final ParameterEncoding encoding, final Map<String, String> headers,final FunOrigin funOrigin, final RunnableCallback callback){
+        TextHttpResponseHandler textHttpResponseHandler = new TextHttpResponseHandler() {
+            @Override
+            public void onFailure(int statusCode, Header[] newHeaders, String responseString, Throwable throwable) {
+                if (statusCode == 401){
+                    loginEaction(endpoint, method, parameters, encoding, headers, funOrigin, callback);
+                }else{
+                    if (statusCode >= 200 && statusCode < 400) {
+                        callback.success(statusCode, responseString);
+                    }else{
+                        callback.failure(statusCode, responseString);
+                    }
+                }
+            }
+
+            @Override
+            public void onSuccess(int statusCode, Header[] newHeaders, String responseString) {
+                if (statusCode == 401){
+                    loginEaction(endpoint, method, parameters, encoding, headers, funOrigin, callback);
+                }else{
+                    if (statusCode >= 200 && statusCode < 400) {
+                        callback.success(statusCode, responseString);
+                    }else{
+                        callback.failure(statusCode, responseString);
+                    }
+                }
+            }
+        };
+
+        JsonHttpResponseHandler jsonHttpResponseHandler = new JsonHttpResponseHandler(){
+            @Override
+            public void onSuccess(int statusCode, Header[] newHeaders, JSONObject response) {
+                super.onSuccess(statusCode, newHeaders, response);
+                if (statusCode == 401){
+                    loginEaction(endpoint, method, parameters, encoding, headers, funOrigin, callback);
+                }else{
+                    if (statusCode >= 200 && statusCode < 400) {
+                        callback.success(statusCode, response);
+                    }else{
+                        callback.failure(statusCode, response);
+                    }
+                }
+            }
+
+            @Override
+            public void onSuccess(int statusCode, Header[] newHeaders, JSONArray response) {
+                super.onSuccess(statusCode, newHeaders, response);
+                if (statusCode == 401){
+                    loginEaction(endpoint, method, parameters, encoding, headers, funOrigin, callback);
+                }else{
+                    if (statusCode >= 200 && statusCode < 400) {
+                        callback.success(statusCode, response);
+                    }else{
+                        callback.failure(statusCode, response);
+                    }
+                }
+            }
+
+            @Override
+            public void onFailure(int statusCode, Header[] newHeaders, Throwable throwable, JSONObject errorResponse) {
+                super.onFailure(statusCode, newHeaders, throwable, errorResponse);
+                if (statusCode == 401){
+                    loginEaction(endpoint, method, parameters, encoding, headers, funOrigin, callback);
+                }else{
+                    if (statusCode >= 200 && statusCode < 400) {
+                        callback.success(statusCode, errorResponse);
+                    }else{
+                        callback.failure(statusCode, errorResponse);
+                    }
+                }
+            }
+
+            @Override
+            public void onFailure(int statusCode, Header[] newHeaders, Throwable throwable, JSONArray errorResponse) {
+                super.onFailure(statusCode, newHeaders, throwable, errorResponse);
+                if (statusCode == 401){
+                    loginEaction(endpoint, method, parameters, encoding, headers, funOrigin, callback);
+                }else{
+                    if (statusCode >= 200 && statusCode < 400) {
+                        callback.success(statusCode, errorResponse);
+                    }else{
+                        callback.failure(statusCode, errorResponse);
+                    }
+                }
+            }
+        };
+        if (headers != null){
+            if (headers.get("Content-type") == null){
+                headers.put("Content-type", "application/json");
+            }
             switch (authenticationType){
                 case Facebook:
                     headers.put("X-Auth-Token", settings.getString("token", ""));
@@ -114,339 +331,87 @@ public class CloudApi {
                     headers.put("X-Auth-Token", settings.getString("token", ""));
                     break;
                 case Oauth2:
+                    //dovrebbe già avere l'header
                     headers.put("Authorization", "Bearer "+ settings.getString("token", ""));
                     break;
                 default:
+                    headers.put("Authorization", "");
                     break;
             }
         }
-       Request request = new Request.Builder().url(getHostName()+endpoint).build();
-        try{
-            switch (parameterEncoding){
-                            case ARRAY:
-                                Gson gsonArray = new Gson();
-                                String array = gsonArray.toJson(params.get(""));
-                                RequestBody requestBodyArray = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), array);
-
-                                request  = request.newBuilder()
-                                        .url(getHostName()+endpoint)
-                                        .method(method.name(), requestBodyArray)
-                                        .build();
-                                break;
-                            case JSON:
-                                Gson gson = new Gson();
-                                String json = gson.toJson(params);
-                                RequestBody requestBody = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), json);
-
-                                request  = request.newBuilder()
-                                        .url(getHostName()+endpoint)
-                                        .method(method.name(), requestBody)
-                                        .build();
-                                break;
-                            case URL:
-                                String url = getHostName()+getQueryParams(params, endpoint);
-
-                                switch (method){
-                                    case GET:
-                                        request = request.newBuilder()
-                                                .url(url)
-                                                .get()
-                                                .build();
-                                        break;
-                                    case DELETE:
-                                        request = request.newBuilder()
-                                                .url(url)
-                                                .delete(RequestBody.create(MediaType.parse("text/plain"), ""))
-                                                .build();
-                                        break;
-                                    case PUT:
-                                        request = request.newBuilder()
-                                                .url(url)
-                                                .put(RequestBody.create(MediaType.parse("text/plain"), ""))
-                                                .build();
-                                        break;
-                                    case POST:
-                                        if (funOrigin == FunOrigin.Authentication){
-                                            RequestBody formBody = new FormBody.Builder()
-                                                    .addEncoded("username", params.get("username").toString())
-                                                    .add("password", params.get("password").toString())
-                                                    .build();
-                                            request = new Request.Builder()
-                                                    .url(getHostName()+endpoint)
-                                                    .post(formBody)
-                                                    .build();
-                                        }else{
-                                            request = request.newBuilder()
-                                                    .url(url)
-                                                    .post(RequestBody.create(MediaType.parse("text/plain"), ""))
-                                                    .build();
-                                        }
-                                        break;
-                                    default:
-                                        request = request.newBuilder()
-                                                .url(url)
-                                                .build();
-                                        break;
-                                }
-
-                                break;
-                            case RECOVER_PASSWORD:
-                                String jsons = params.get("email").toString();
-                                RequestBody requestBodys = RequestBody.create(MediaType.parse("text/plain"), jsons);
-
-                                request  = request.newBuilder()
-                                        .url(getHostName()+endpoint)
-                                        .method(method.name(), requestBodys)
-                                        .build();
-                            default:
-                                break;
-                        }
-                    }catch (Exception e){
-                        e.printStackTrace();
-                    }
-
-        if (headers != null){
-            for (Map.Entry<String, String> entry : headers.entrySet()){
-                request = request.newBuilder().addHeader(entry.getKey(), entry.getValue()).build();
-            }
-        }
-        return request;
-    }
-
-
-    public void authenticate(String endpoint,
-                             Map<String, String> headers,
-                             Map<String, Object> params ,
-                             final ParameterEncoding encoding,
-                             final RunnableCallback callback) {
-        editor = settings.edit();
-        RequestBody requestBody = RequestBody.create(MediaType.parse("application/x-www-form-urlencoded; charset=utf-8"), getQueryParams(params, "").split("\\?")[1]);
-        Request request;
-        switch (authenticationType){
-            case Facebook:
-                request = retrofitBuilder(Method.POST,endpoint,headers, params, encoding, FunOrigin.Authentication);
-                request = request.newBuilder().method(Method.POST.name(),requestBody).build();
-
-                authenticateFb(callback, request);
-                break;
-            case Oauth2:
-                try{
-                    if (params != null){
-                        if (params.get("grant_type").toString().equals("refresh_token")){
-                            String authorization = "";
-                            String clientId = params.get("client_id").toString();
-                            String clientSecret = params.get("client_secret").toString();
-                            byte[] data = (clientId+":"+clientSecret).getBytes();
-                            authorization ="Basic "+ Base64.encodeToString(data, Base64.DEFAULT);
-                            authorization = authorization.trim();
-                            params.put("refresh_token", settings.getString("refresh_token", ""));
-                            params.put("scope", settings.getString("scope", ""));
-                            headers.put("Authorization", authorization);
-                        }
-                    }else{
-                        params = new HashMap<>();
-                        params.put("grant_type", "refresh_token");
-                        params.put("client_id", settings.getString("clientId",""));
-                        params.put("client_secret", settings.getString("clientSecret",""));
-                        params.put("refresh_token", settings.getString("refresh_token", ""));
-                        params.put("scope", settings.getString("scope", ""));
-                        String authorization = "";
-                        String clientId = params.get("client_id").toString();
-                        String clientSecret = params.get("client_secret").toString();
-                        byte[] data = (clientId+":"+clientSecret).getBytes();
-                        authorization ="Basic "+ Base64.encodeToString(data, Base64.DEFAULT);
-                        authorization = authorization.trim();
-                        headers.put("Authorization", authorization);
-                    }
-                }catch (Exception e){
-                    e.printStackTrace();
+        buildHeaders(headers);
+        switch (encoding){
+            case JSON:
+                StringEntity request = buildParams(parameters);
+                switch (method){
+                    case DELETE:
+                        client.delete(context, getHostName() + endpoint, request, "application/json", jsonHttpResponseHandler);
+                        break;
+                    case GET:
+                        client.get(context, getHostName() + endpoint, request, "application/json", jsonHttpResponseHandler);
+                        break;
+                    case POST:
+                        client.post(context, getHostName() + endpoint, request, "application/json", jsonHttpResponseHandler);
+                        break;
+                    case PUT:
+                        client.put(context, getHostName() + endpoint, request, "application/json", jsonHttpResponseHandler);
+                        break;
+                    default:
+                        client.get(context, getHostName() + endpoint, request, "application/json", jsonHttpResponseHandler);
+                        break;
                 }
-                request = retrofitBuilder(Method.POST, endpoint,headers, params, encoding, FunOrigin.Authentication);
-                request = request.newBuilder().method(Method.POST.name(),requestBody).build();
-
-                authenticateOauth2(callback,request);
                 break;
-            case Standard:
-                try{
-                    request = retrofitBuilder(Method.POST, endpoint, headers, params,encoding, FunOrigin.Authentication);
-                    request = request.newBuilder().method(Method.POST.name(),requestBody).build();
-
-                    authenticateStandard(callback, request);
-                }catch (Exception e){
-                    e.printStackTrace();
+            case URL:
+                String queryiedEndpoint = buildPath(endpoint, parameters);
+                switch (method){
+                    case DELETE:
+                        client.delete(getHostName() + queryiedEndpoint, null, jsonHttpResponseHandler);
+                        break;
+                    case GET:
+                        client.get(getHostName() + queryiedEndpoint, null, jsonHttpResponseHandler);
+                        break;
+                    case POST:
+                        client.post(getHostName() + queryiedEndpoint, null, jsonHttpResponseHandler);
+                        break;
+                    case PUT:
+                        client.put(getHostName() + queryiedEndpoint, null, jsonHttpResponseHandler);
+                        break;
+                    default:
+                        client.get(getHostName() + queryiedEndpoint, null, jsonHttpResponseHandler);
+                        break;
                 }
-
                 break;
-            case None:
-                break;
-            default:
+            case RECOVER_PASSWORD:
+                StringEntity entity = new StringEntity(parameters.get("email").toString(), ContentType.TEXT_PLAIN);
+                client.removeAllHeaders();
+                switch (method){
+                    case DELETE:
+                        client.delete(context, getHostName() + endpoint, entity, "text/plain", textHttpResponseHandler);
+                        break;
+                    case GET:
+                        client.get(context, getHostName() + endpoint, entity, "text/plain", textHttpResponseHandler);
+                        break;
+                    case POST:
+                        client.post(context, getHostName() + endpoint, entity, "text/plain", textHttpResponseHandler);
+                        break;
+                    case PUT:
+                        client.put(context, getHostName() + endpoint, entity, "text/plain", textHttpResponseHandler);
+                        break;
+                    default:
+                        client.get(context, getHostName() + endpoint, entity, "text/plain", textHttpResponseHandler);
+                        break;
+                }
                 break;
         }
-        editor.putString("auth_type", authenticationType.toString());
-        editor.putString("auth_endpoint", endpoint);
-        editor.apply();
     }
 
-
-    private void authenticateStandard(final RunnableCallback callback, final Request request){
-        client.newCall(request).enqueue(new Callback() {
-            @Override
-            public void onResponse(Call call, Response response) {
-                try {
-                    if (response.code() >= 200 && response.code() < 400){
-                        JsonParser parser = new JsonParser();
-                        JsonObject responseObj = parser.parse(response.body().string()).getAsJsonObject();
-                        editor.putString("token", responseObj.get("token").getAsString());
-                        editor.apply();
-                        callback.success(response.code(),responseObj);
-                    }else{
-                        callback.failure(response.code(), response.message());
-                    }
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }finally {
-                    response.body().close();
-                }
-
-
-            }
-
-            @Override
-            public void onFailure(Call call, IOException e) {
-                callback.failure(0, e.getMessage());
-            }
-        });
-    }
-
-    private void authenticateFb(final RunnableCallback callback, Request request){
-        client.newCall(request).enqueue(new Callback() {
-            @Override
-            public void onFailure(Call call, IOException e) {
-                callback.failure(0, e.getMessage());
-            }
-
-            @Override
-            public void onResponse(Call call, Response response) throws IOException {
-                try {
-                    if (response.code() >=200 && response.code() < 400){
-                        JsonParser parser = new JsonParser();
-                        JsonObject responseObj = parser.parse(response.body().string()).getAsJsonObject();
-                        editor.putString("token", responseObj.get("token").getAsString());
-                        editor.putBoolean("isAuth", true);
-                        editor.apply();
-                        callback.success(response.code(), responseObj);
-                    }else{
-                        callback.failure(response.code(), response.message());
-                    }
-                }finally {
-                    response.body().close();
-                }
-            }
-        });
-    }
-
-    private void authenticateOauth2(final RunnableCallback callback, Request request){
-        client.newCall(request).enqueue(new Callback() {
-            @Override
-            public void onFailure(Call call, IOException e) {
-                callback.failure(0, e.getMessage());
-            }
-
-            @Override
-            public void onResponse(Call call, Response response) throws IOException {
-
-             try {
-                 if (response.code() >= 200 && response.code() < 400){
-                     JsonParser parser = new JsonParser();
-                     JsonObject responseObj = parser.parse(response.body().string()).getAsJsonObject();
-                     editor.putString("token", responseObj.get("access_token").getAsString());
-                     editor.putString("refresh_token", responseObj.get("refresh_token").getAsString());
-                     editor.putBoolean("isAuth", true);
-                     editor.apply();
-                     callback.success(response.code(), responseObj);
-                 }else{
-                     callback.failure(response.code(), response.message());
-                 }
-             }catch(MalformedJsonException e){
-                 callback.failure(500, e);
-             }finally {
-                 response.body().close();
-             }
-            }
-        });
-    }
-
-
-
-
-
-    public void action(final String endpoint, final Method method, final Map<String, Object> parameters, final ParameterEncoding encoding, final Map<String, String> headers,final FunOrigin funOrigin, final RunnableCallback callback){
-        final Request request = retrofitBuilder(method, endpoint, headers,parameters,encoding, funOrigin);
-
-        if (request != null){
-            client.newCall(request).enqueue(new Callback() {
-                @Override
-                public void onFailure(Call call, IOException e) {
-                    callback.failure(0, e);
-
-                }
-
-                @Override
-                public void onResponse(Call call, final Response response) throws IOException {
-
-                    try{
-                        if (response.code() == 401){
-                            Map<String,Object> params = new HashMap<>();
-                            params.put("username", settings.getString("login",""));
-                            params.put("password", settings.getString("password",""));
-                            authenticate(settings.getString("auth_endpoint", ""), new HashMap<String, String>(), params, ParameterEncoding.URL, new RunnableCallback() {
-                                @Override
-                                public void success(int statusCode, Object responseObject) {
-                                    action(endpoint, method, parameters, encoding, headers, funOrigin,callback);
-                                }
-
-                                @Override
-                                public void failure(int statusCode, Object e) {
-                                    if (statusCode == 401){
-                                        //se entro in questa casistica significa che le credenziali dell'account sono state cambiate
-                                        // nel server e non in locale quindi ho bisogno che l'utente riesegua il login
-                                        settings.edit().clear().apply();
-                                        Realm.init(context);
-                                        Realm realm = Realm.getDefaultInstance();
-                                        realm.beginTransaction();
-                                        realm.deleteAll();
-                                        realm.commitTransaction();
-                                        ((Activity)context).finishAffinity();
-                                        context.startActivity(new Intent(context, getFirstActivity()));
-                                    }
-                                }
-                            });
-                        }else{
-                            if (response.code() >= 200 && response.code() < 400) {
-                                callback.success(response.code(), response.body().string());
-                            }else{
-                                callback.failure(response.code(), response.body().string());
-                            }
-                        }
-                    }finally {
-                        response.body().close();
-                    }
-                }
-            });
-        }
-
-    }
-
-
-    private String getQueryParams(Map<String, Object> params, String endpoint){
-        if (params != null){
-            String queryPath = "?";
+    private String buildPath(String endpoint, Map<String, Object> params){
+        endpoint = endpoint+"?";
+        if (params != null && !params.isEmpty()){
             for (Map.Entry<String, Object> entry : params.entrySet()){
-                queryPath = queryPath+entry.getKey()+"="+entry.getValue()+"&";
+                endpoint = endpoint+entry.getKey()+"="+entry.getValue()+"&";
             }
-            endpoint = endpoint+queryPath;
         }
-
         return endpoint;
     }
 
