@@ -257,6 +257,27 @@ public class CloudApi {
         };
 
         JsonHttpResponseHandler jsonHttpResponseHandler = new JsonHttpResponseHandler(){
+
+            @Override
+            public void onFailure(int statusCode, Header[] headers, String responseString, Throwable throwable) {
+                super.onFailure(statusCode, headers, responseString, throwable);
+                if (statusCode >= 200 && statusCode < 400){
+                    callback.success(statusCode, responseString);
+                }else{
+                    callback.failure(statusCode, responseString);
+                }
+            }
+
+            @Override
+            public void onSuccess(int statusCode, Header[] headers, String responseString) {
+                super.onSuccess(statusCode, headers, responseString);
+                if (statusCode >= 200 && statusCode < 400){
+                    callback.success(statusCode, responseString);
+                }else{
+                    callback.failure(statusCode, responseString);
+                }
+            }
+
             @Override
             public void onSuccess(int statusCode, Header[] newHeaders, JSONObject response) {
                 super.onSuccess(statusCode, newHeaders, response);
