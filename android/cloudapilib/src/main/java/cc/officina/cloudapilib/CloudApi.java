@@ -31,6 +31,7 @@ public class CloudApi {
     private SharedPreferences.Editor editor;
     private AuthenticationType authenticationType;
     private Context context;
+    private String settingsString;
     private AsyncHttpClient client = new AsyncHttpClient();
 
     public Class getFirstActivity() {
@@ -46,12 +47,18 @@ public class CloudApi {
     protected CloudApi() {
         // Exists only to defeat instantiation.
     }
+
+    public static void setSettingsString(String settingsString) {
+        instance.settingsString = settingsString;
+        instance.settings = configSharedPref(instance.settingsString, instance.context);
+    }
+
     public static CloudApi getInstance(Context context) {
         if(instance == null) {
             instance = new CloudApi();
             instance.authenticationType = AuthenticationType.Oauth2;
             instance.context = context;
-            instance.settings = configSharedPref(context.getPackageName(), context);
+
             if (BuildConfig.DEBUG){
                 instance.client.setProxy(System.getProperty("http.proxyHost"), Integer.parseInt(System.getProperty("http.proxyPort")));
             }
