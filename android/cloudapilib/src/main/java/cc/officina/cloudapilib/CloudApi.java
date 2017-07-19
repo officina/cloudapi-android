@@ -1,6 +1,7 @@
 package cc.officina.cloudapilib;
 
 import android.app.Activity;
+import android.app.Application;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -227,8 +228,12 @@ public class CloudApi {
                     realm.beginTransaction();
                     realm.deleteAll();
                     realm.commitTransaction();
-                    ((Activity)context).finishAffinity();
-                    context.startActivity(new Intent(context, getFirstActivity()));
+                    if (context instanceof Activity){
+                        if (!((Activity)context).isFinishing()){
+                            ((Activity)context).finishAffinity();
+                            context.startActivity(new Intent(context, getFirstActivity()));
+                        }
+                    }
                 }
             }
         });
