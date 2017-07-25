@@ -18,6 +18,7 @@ import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.Map;
 import cz.msebera.android.httpclient.Header;
+import cz.msebera.android.httpclient.HttpEntity;
 import cz.msebera.android.httpclient.entity.ContentType;
 import cz.msebera.android.httpclient.entity.StringEntity;
 import io.realm.Realm;
