@@ -151,7 +151,7 @@ public class CloudApi {
                 requestParams.put(entry.getKey(), entry.getValue());
             }
         }
-        headers.put("Content-type", "application/x-www-form-urlencoded");
+        headers.put("Content-Type", "application/x-www-form-urlencoded");
         buildHeaders(headers);
         client.post(getHostName() + endpoint, requestParams, new JsonHttpResponseHandler(){
             @Override
@@ -348,8 +348,8 @@ public class CloudApi {
             }
         };
         if (headers != null){
-            if (headers.get("Content-type") == null){
-                headers.put("Content-type", "application/json");
+            if (headers.get("Content-Type") == null){
+                headers.put("Content-Type", "application/json");
             }
             switch (authenticationType){
                 case Facebook:
