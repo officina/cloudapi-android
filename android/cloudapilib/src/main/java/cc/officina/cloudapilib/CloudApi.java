@@ -77,7 +77,8 @@ public class CloudApi {
     public enum ParameterEncoding{
         JSON,
         URL,
-        RECOVER_PASSWORD
+        RECOVER_PASSWORD,
+        CHANGE_PASSWORD
     }
     public enum AuthenticationType{
 
@@ -427,6 +428,27 @@ public class CloudApi {
                         break;
                     default:
                         client.get(context, getHostName() + endpoint, entity, "text/plain", textHttpResponseHandler);
+                        break;
+                }
+                break;
+            case CHANGE_PASSWORD:
+                StringEntity entityP = new StringEntity(parameters.get("password").toString(), ContentType.TEXT_PLAIN);
+                //client.removeAllHeaders();
+                switch (method){
+                    case DELETE:
+                        client.delete(context, getHostName() + endpoint, entityP, "text/plain", textHttpResponseHandler);
+                        break;
+                    case GET:
+                        client.get(context, getHostName() + endpoint, entityP, "text/plain", textHttpResponseHandler);
+                        break;
+                    case POST:
+                        client.post(context, getHostName() + endpoint, entityP, "text/plain", textHttpResponseHandler);
+                        break;
+                    case PUT:
+                        client.put(context, getHostName() + endpoint, entityP, "text/plain", textHttpResponseHandler);
+                        break;
+                    default:
+                        client.get(context, getHostName() + endpoint, entityP, "text/plain", textHttpResponseHandler);
                         break;
                 }
                 break;
