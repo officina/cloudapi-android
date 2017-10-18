@@ -5,8 +5,9 @@ import android.app.Application;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.support.compat.BuildConfig;
 import android.util.Base64;
+import android.util.Log;
+
 import com.loopj.android.http.AsyncHttpClient;
 import com.loopj.android.http.JsonHttpResponseHandler;
 import com.loopj.android.http.RequestParams;
@@ -18,7 +19,6 @@ import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.Map;
 import cz.msebera.android.httpclient.Header;
-import cz.msebera.android.httpclient.HttpEntity;
 import cz.msebera.android.httpclient.entity.ContentType;
 import cz.msebera.android.httpclient.entity.StringEntity;
 import io.realm.Realm;
@@ -27,7 +27,8 @@ import io.realm.Realm;
  * Created by riccardogazzea on 06/06/16.
  */
 public class CloudApi {
-    private String hostName;
+    private String hostName = "api/authenticate";
+    private String authUrl;
     private static CloudApi instance = null;
     private SharedPreferences settings;
     private SharedPreferences.Editor editor;
@@ -35,6 +36,7 @@ public class CloudApi {
     private Context context;
     private String settingsString;
     private AsyncHttpClient client = new AsyncHttpClient();
+    public static final String PASSWORD_ERROR = "password-error";
 
     public Class getFirstActivity() {
         return firstActivity;
@@ -60,10 +62,7 @@ public class CloudApi {
             instance = new CloudApi();
             instance.authenticationType = AuthenticationType.Oauth2;
             instance.context = context;
-
-            if (BuildConfig.DEBUG){
-                instance.client.setProxy(System.getProperty("http.proxyHost"), Integer.parseInt(System.getProperty("http.proxyPort")));
-            }
+            instance.client.setProxy(System.getProperty("http.proxyHost"), Integer.parseInt(System.getProperty("http.proxyPort")));
         }
         return instance;
     }
@@ -78,10 +77,10 @@ public class CloudApi {
         JSON,
         URL,
         RECOVER_PASSWORD,
-        CHANGE_PASSWORD
+        CHANGE_PASSWORD,
+        REGISTER_FACEBOOK
     }
     public enum AuthenticationType{
-
         Standard,
         Facebook,
         Oauth2,
@@ -91,6 +90,14 @@ public class CloudApi {
     public enum FunOrigin{
         Action,
         Authentication,
+    }
+
+    public String getAuthUrl() {
+        return authUrl;
+    }
+
+    public void setAuthUrl(String authUrl) {
+        this.authUrl = authUrl;
     }
 
     String getHostName(){
@@ -108,8 +115,7 @@ public class CloudApi {
         this.authenticationType = authenticationType;
     }
 
-    public void authenticate(String endpoint,
-                             Map<String, String> headers,
+    public void authenticate(Map<String, String> headers,
                              Map<String, Object> params ,
                              final RunnableCallback callback) {
         editor = settings.edit();
@@ -154,14 +160,14 @@ public class CloudApi {
         }
         headers.put("Content-Type", "application/x-www-form-urlencoded");
         buildHeaders(headers);
-        client.post(getHostName() + endpoint, requestParams, new JsonHttpResponseHandler(){
+        client.post(getHostName() + getAuthUrl(), requestParams, new JsonHttpResponseHandler(){
             @Override
             public void onSuccess(int statusCode, Header[] headers, JSONObject response) {
                 super.onSuccess(statusCode, headers, response);
                 if (statusCode >= 200 && statusCode < 400){
-                    callback.success(statusCode, response);
                     if (authenticationType == AuthenticationType.Standard || authenticationType == AuthenticationType.Facebook){
                         try {
+                            Log.d("CloudApi", "onSuccess: "+statusCode+" token: "+response.getString("token"));
                             editor.putString("token", response.getString("token"));
                             editor.putBoolean("isAuth", true);
                             editor.apply();
@@ -178,6 +184,7 @@ public class CloudApi {
                             e.printStackTrace();
                         }
                     }
+                    callback.success(statusCode, response);
                 }else{
                     callback.failure(statusCode, response);
                 }
@@ -190,7 +197,6 @@ public class CloudApi {
             }
         });
         editor.putString("auth_type", authenticationType.toString());
-        editor.putString("auth_endpoint", endpoint);
         editor.apply();
     }
 
@@ -209,11 +215,11 @@ public class CloudApi {
         return new StringEntity(object.toString(), Charset.defaultCharset());
     };
 
-    private void loginEaction(final String endpoint, final Method method, final Map<String, Object> parameters, final ParameterEncoding encoding, final Map<String, String> headers, final FunOrigin funOrigin, final RunnableCallback callback){
+    private void loginAndAction(final String endpoint, final Method method, final Map<String, Object> parameters, final ParameterEncoding encoding, final Map<String, String> headers, final FunOrigin funOrigin, final RunnableCallback callback){
         Map<String,Object> params = new HashMap<>();
         params.put("username", settings.getString("login",""));
         params.put("password", settings.getString("password",""));
-        authenticate(settings.getString("auth_endpoint", ""), new HashMap<String, String>(), params, new RunnableCallback() {
+        authenticate(new HashMap<String, String>(), params, new RunnableCallback() {
             @Override
             public void success(int statusCode, Object responseObject) {
                 action(endpoint, method, parameters, encoding, headers, funOrigin,callback);
@@ -221,19 +227,27 @@ public class CloudApi {
 
             @Override
             public void failure(int statusCode, Object e) {
+                if (e != null){
+                    Log.d("CloudApi", "loginAndAction failure: statusCode: "+statusCode+" error: "+e.toString());
+                }
                 if (statusCode == 401){
                     //se entro in questa casistica significa che le credenziali dell'account sono state cambiate
                     // nel server e non in locale quindi ho bisogno che l'utente riesegua il login
+                    client.cancelAllRequests(true);
                     settings.edit().clear().apply();
                     Realm.init(context);
                     Realm realm = Realm.getDefaultInstance();
                     realm.beginTransaction();
                     realm.deleteAll();
                     realm.commitTransaction();
+                    Intent intent = new Intent(context, getFirstActivity()).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP).putExtra(PASSWORD_ERROR, true);
                     if (context instanceof Activity){
                         if (!((Activity)context).isFinishing()){
                             ((Activity)context).finishAffinity();
-                            context.startActivity(new Intent(context, getFirstActivity()));
+                            context.startActivity(intent);
+                        }else{
+                            ((Activity) context).finish();
+                            context.startActivity(intent);
                         }
                     }
                 }
@@ -246,7 +260,7 @@ public class CloudApi {
             @Override
             public void onFailure(int statusCode, Header[] newHeaders, String responseString, Throwable throwable) {
                 if (statusCode == 401){
-                    loginEaction(endpoint, method, parameters, encoding, headers, funOrigin, callback);
+                    loginAndAction(endpoint, method, parameters, encoding, headers, funOrigin, callback);
                 }else{
                     if (statusCode >= 200 && statusCode < 400) {
                         callback.success(statusCode, responseString);
@@ -259,7 +273,7 @@ public class CloudApi {
             @Override
             public void onSuccess(int statusCode, Header[] newHeaders, String responseString) {
                 if (statusCode == 401){
-                    loginEaction(endpoint, method, parameters, encoding, headers, funOrigin, callback);
+                    loginAndAction(endpoint, method, parameters, encoding, headers, funOrigin, callback);
                 }else{
                     if (statusCode >= 200 && statusCode < 400) {
                         callback.success(statusCode, responseString);
@@ -296,7 +310,7 @@ public class CloudApi {
             public void onSuccess(int statusCode, Header[] newHeaders, JSONObject response) {
                 super.onSuccess(statusCode, newHeaders, response);
                 if (statusCode == 401){
-                    loginEaction(endpoint, method, parameters, encoding, headers, funOrigin, callback);
+                    loginAndAction(endpoint, method, parameters, encoding, headers, funOrigin, callback);
                 }else{
                     if (statusCode >= 200 && statusCode < 400) {
                         callback.success(statusCode, response);
@@ -310,7 +324,7 @@ public class CloudApi {
             public void onSuccess(int statusCode, Header[] newHeaders, JSONArray response) {
                 super.onSuccess(statusCode, newHeaders, response);
                 if (statusCode == 401){
-                    loginEaction(endpoint, method, parameters, encoding, headers, funOrigin, callback);
+                    loginAndAction(endpoint, method, parameters, encoding, headers, funOrigin, callback);
                 }else{
                     if (statusCode >= 200 && statusCode < 400) {
                         callback.success(statusCode, response);
@@ -324,7 +338,7 @@ public class CloudApi {
             public void onFailure(int statusCode, Header[] newHeaders, Throwable throwable, JSONObject errorResponse) {
                 super.onFailure(statusCode, newHeaders, throwable, errorResponse);
                 if (statusCode == 401){
-                    loginEaction(endpoint, method, parameters, encoding, headers, funOrigin, callback);
+                    loginAndAction(endpoint, method, parameters, encoding, headers, funOrigin, callback);
                 }else{
                     if (statusCode >= 200 && statusCode < 400) {
                         callback.success(statusCode, errorResponse);
@@ -338,7 +352,7 @@ public class CloudApi {
             public void onFailure(int statusCode, Header[] newHeaders, Throwable throwable, JSONArray errorResponse) {
                 super.onFailure(statusCode, newHeaders, throwable, errorResponse);
                 if (statusCode == 401){
-                    loginEaction(endpoint, method, parameters, encoding, headers, funOrigin, callback);
+                    loginAndAction(endpoint, method, parameters, encoding, headers, funOrigin, callback);
                 }else{
                     if (statusCode >= 200 && statusCode < 400) {
                         callback.success(statusCode, errorResponse);
@@ -451,6 +465,20 @@ public class CloudApi {
                         client.get(context, getHostName() + endpoint, entityP, "text/plain", textHttpResponseHandler);
                         break;
                 }
+                break;
+            case REGISTER_FACEBOOK:
+                //client.removeAllHeaders();
+                final RequestParams requestParams = new RequestParams();
+                if (parameters != null && !parameters.isEmpty()){
+                    for (Map.Entry<String, Object> entry : parameters.entrySet()){
+                        requestParams.put(entry.getKey(), entry.getValue());
+                    }
+                }
+                if (headers != null){
+                    headers.put("Content-Type", "application/x-www-form-urlencoded");
+                }
+                buildHeaders(headers);
+                client.post(context, getHostName() + endpoint, requestParams, jsonHttpResponseHandler);
                 break;
         }
     }
