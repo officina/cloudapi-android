@@ -62,7 +62,9 @@ public class CloudApi {
             instance = new CloudApi();
             instance.authenticationType = AuthenticationType.Oauth2;
             instance.context = context;
-            instance.client.setProxy(System.getProperty("http.proxyHost"), Integer.parseInt(System.getProperty("http.proxyPort")));
+            if (System.getProperty("http.proxyHost") != null && System.getProperty("http.portHost") != null){
+                instance.client.setProxy(System.getProperty("http.proxyHost"), Integer.parseInt(System.getProperty("http.proxyPort")));
+            }
         }
         return instance;
     }
