@@ -368,6 +368,9 @@ public class CloudApi {
             if (headers.get("Content-Type") == null){
                 headers.put("Content-Type", "application/json");
             }
+            if (settings == null){
+                settings = configSharedPref(settingsString, context);
+            }
             switch (authenticationType){
                 case Facebook:
                     headers.put("X-Auth-Token", settings.getString("token", ""));
