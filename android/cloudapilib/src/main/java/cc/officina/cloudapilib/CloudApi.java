@@ -27,7 +27,7 @@ import io.realm.Realm;
  * Created by riccardogazzea on 06/06/16.
  */
 public class CloudApi {
-    private String hostName = "api/authenticate";
+    private String hostName = "";
     private String authUrl;
     private static CloudApi instance = null;
     private SharedPreferences settings;
@@ -215,7 +215,7 @@ public class CloudApi {
     private StringEntity buildParams(Map<String, Object> map){
         JSONObject object = new JSONObject(map);
         return new StringEntity(object.toString(), Charset.defaultCharset());
-    };
+    }
 
     private void loginAndAction(final String endpoint, final Method method, final Map<String, Object> parameters, final ParameterEncoding encoding, final Map<String, String> headers, final FunOrigin funOrigin, final RunnableCallback callback){
         Map<String,Object> params = new HashMap<>();
