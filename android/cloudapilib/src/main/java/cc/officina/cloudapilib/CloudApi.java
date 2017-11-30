@@ -102,7 +102,7 @@ public class CloudApi {
         this.authUrl = authUrl;
     }
 
-    String getHostName(){
+    public String getHostName(){
         return this.hostName;
     }
     public void setHostName(String hostName){
