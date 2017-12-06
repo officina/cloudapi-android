@@ -27,7 +27,7 @@ import io.realm.Realm;
  * Created by riccardogazzea on 06/06/16.
  */
 public class CloudApi {
-    private String hostName = "";
+    //private String hostName = "https://bk-test.nowr.in/";
     private String authUrl;
     private static CloudApi instance = null;
     private SharedPreferences settings;
@@ -58,6 +58,8 @@ public class CloudApi {
     }
 
     public static CloudApi getInstance(Context context) {
+        // TODO: 30/11/2017 rimuovere riferimento a contesto e mettere applicationContext
+        // TODO: 30/11/2017 OTTIMIZZAZIONE MEMORIA prevedere un metodo che nullifichi i riferimenti 
         if(instance == null) {
             instance = new CloudApi();
             instance.authenticationType = AuthenticationType.Oauth2;
@@ -94,7 +96,7 @@ public class CloudApi {
         Authentication,
     }
 
-    public String getAuthUrl() {
+    private String getAuthUrl() {
         return authUrl;
     }
 
@@ -102,11 +104,12 @@ public class CloudApi {
         this.authUrl = authUrl;
     }
 
-    public String getHostName(){
-        return this.hostName;
+    private String getHostName(){
+        return settings.getString("hostName", "");
     }
+
     public void setHostName(String hostName){
-        this.hostName = hostName;
+        settings.edit().putString("hostName", hostName).apply();
     }
 
     public AuthenticationType getAuthenticationType() {
