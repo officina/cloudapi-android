@@ -1,5 +1,6 @@
 package cc.officina.cloudapilib;
 
+import android.accounts.AuthenticatorException;
 import android.app.Activity;
 import android.app.Application;
 import android.content.Context;
@@ -28,11 +29,10 @@ import io.realm.Realm;
  */
 public class CloudApi {
     //private String hostName = "https://bk-test.nowr.in/";
-    private String authUrl;
     private static CloudApi instance = null;
     private SharedPreferences settings;
     private SharedPreferences.Editor editor;
-    private AuthenticationType authenticationType;
+    private AuthenticationType authenticationType = AuthenticationType.Standard;
     private Context context;
     private String settingsString;
     private AsyncHttpClient client = new AsyncHttpClient();
@@ -96,14 +96,6 @@ public class CloudApi {
         Authentication,
     }
 
-    private String getAuthUrl() {
-        return authUrl;
-    }
-
-    public void setAuthUrl(String authUrl) {
-        this.authUrl = authUrl;
-    }
-
     private String getHostName(){
         return settings.getString("hostName", "");
     }
@@ -123,6 +115,16 @@ public class CloudApi {
     public void authenticate(Map<String, String> headers,
                              Map<String, Object> params ,
                              final RunnableCallback callback) {
+        if (authenticationType == AuthenticationType.Facebook){
+            authenticateFacebook(headers, params, callback);
+        }else if(authenticationType == AuthenticationType.Oauth2){
+            authenticate("api/oauth", headers, params, callback);
+        }else{
+            authenticate("api/authenticate", headers, params, callback);
+        }
+    }
+
+    private void authenticate(String path, Map<String, String> headers, Map<String, Object> params, final RunnableCallback callback){
         editor = settings.edit();
         if (authenticationType == AuthenticationType.Oauth2){
             try{
@@ -165,7 +167,7 @@ public class CloudApi {
         }
         headers.put("Content-Type", "application/x-www-form-urlencoded");
         buildHeaders(headers);
-        client.post(getHostName() + getAuthUrl(), requestParams, new JsonHttpResponseHandler(){
+        client.post(getHostName()+path, requestParams, new JsonHttpResponseHandler(){
             @Override
             public void onSuccess(int statusCode, Header[] headers, JSONObject response) {
                 super.onSuccess(statusCode, headers, response);
@@ -203,6 +205,10 @@ public class CloudApi {
         });
         editor.putString("auth_type", authenticationType.toString());
         editor.apply();
+    }
+
+    private void authenticateFacebook(Map<String, String> headers, Map<String, Object> params, RunnableCallback callback){
+        authenticate("api/register/facebook", headers, params, callback);
     }
 
     private void buildHeaders(Map<String, String> headers){
