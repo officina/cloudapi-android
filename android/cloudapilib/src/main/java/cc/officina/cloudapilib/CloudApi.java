@@ -62,7 +62,8 @@ public class CloudApi {
         // TODO: 30/11/2017 OTTIMIZZAZIONE MEMORIA prevedere un metodo che nullifichi i riferimenti 
         if(instance == null) {
             instance = new CloudApi();
-            instance.authenticationType = AuthenticationType.Oauth2;
+            instance.authenticationType = AuthenticationType.Standard;
+            // TODO: 22/12/2017 vericare quando viene nullificata l'istanza
             instance.context = context;
             if (System.getProperty("https.proxyHost") != null && System.getProperty("https.proxyPort") != null){
                 instance.client.setProxy(System.getProperty("http.proxyHost"), Integer.parseInt(System.getProperty("http.proxyPort")));
