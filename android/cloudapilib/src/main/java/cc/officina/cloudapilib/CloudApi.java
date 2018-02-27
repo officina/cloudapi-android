@@ -1,8 +1,6 @@
 package cc.officina.cloudapilib;
 
-import android.accounts.AuthenticatorException;
 import android.app.Activity;
-import android.app.Application;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -57,9 +55,7 @@ public class CloudApi {
         instance.settings = configSharedPref(instance.settingsString, instance.context);
     }
 
-    public static CloudApi getInstance(Context context) {
-        // TODO: 30/11/2017 rimuovere riferimento a contesto e mettere applicationContext
-        // TODO: 30/11/2017 OTTIMIZZAZIONE MEMORIA prevedere un metodo che nullifichi i riferimenti 
+    public static void init(Context context){
         if(instance == null) {
             instance = new CloudApi();
             instance.authenticationType = AuthenticationType.Standard;
@@ -69,6 +65,10 @@ public class CloudApi {
                 instance.client.setProxy(System.getProperty("http.proxyHost"), Integer.parseInt(System.getProperty("http.proxyPort")));
             }
         }
+    }
+    public static CloudApi getInstance() {
+        // TODO: 30/11/2017 rimuovere riferimento a contesto e mettere applicationContext
+        // TODO: 30/11/2017 OTTIMIZZAZIONE MEMORIA prevedere un metodo che nullifichi i riferimenti
         return instance;
     }
 
