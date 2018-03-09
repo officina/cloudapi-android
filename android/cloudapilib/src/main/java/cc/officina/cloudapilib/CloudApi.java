@@ -20,7 +20,6 @@ import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.Map;
 
-import cc.officina.cloudapilib.retrofit.NetworkClient;
 import cz.msebera.android.httpclient.Header;
 import cz.msebera.android.httpclient.entity.ContentType;
 import cz.msebera.android.httpclient.entity.StringEntity;
@@ -38,7 +37,6 @@ public class CloudApi {
     private Context context;
     private String settingsString;
     private AsyncHttpClient client = new AsyncHttpClient();
-    private NetworkClient retrofitClient;
     public static final String PASSWORD_ERROR = "password-error";
 
     public Class getFirstActivity() {
@@ -522,13 +520,6 @@ public class CloudApi {
 
     public static SharedPreferences configSharedPref(String appPackage, Context context) {
         return context.getSharedPreferences(appPackage, Context.MODE_PRIVATE);
-    }
-
-    public NetworkClient getRetrofitClient() {
-        if (retrofitClient == null) {
-            retrofitClient = new NetworkClient(getHostName());
-        }
-        return retrofitClient;
     }
 }
 
