@@ -29,4 +29,11 @@ dependencies {
     compile 'io.realm:realm-android-library:3.7.2'
     compile 'com.loopj.android:android-async-http:1.4.9'
     implementation 'com.android.support:support-annotations:27.0.1'
+
+    compile externalModuleDependencies.rx.rxandroid
+    compile externalModuleDependencies.rx.rxjava
+    compile externalModuleDependencies.square.logginginterceptor
+    compile externalModuleDependencies.square.retrofit2.retrofit
+    compile externalModuleDependencies.square.retrofit2.adapterrxjava
+    compile externalModuleDependencies.square.retrofit2.convertergson
 }
