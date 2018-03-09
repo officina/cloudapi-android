@@ -7,6 +7,7 @@ import java.util.concurrent.TimeUnit;
 
 import cc.officina.cloudapilib.BuildConfig;
 import cc.officina.cloudapilib.CloudApi;
+import cc.officina.cloudapilib.model.Location;
 import okhttp3.CipherSuite;
 import okhttp3.ConnectionSpec;
 import okhttp3.Interceptor;
@@ -106,7 +107,7 @@ public class NetworkClient implements NetworkClientInterface {
     }
 
     @Override
-    public Observable<List<String>> locations(double latitude, double longitude, String query, int limit, int radius) {
+    public Observable<List<Location>> locations(double latitude, double longitude, String query, int limit, int radius) {
         return mRetrofit.create(NetworkApiInterface.class).locations(latitude, longitude, query, limit, radius);
     }
 

@@ -2,6 +2,7 @@ package cc.officina.cloudapilib.retrofit;
 
 import java.util.List;
 
+import cc.officina.cloudapilib.model.Location;
 import rx.Observable;
 
 /**
@@ -12,5 +13,5 @@ import rx.Observable;
 public interface NetworkClientInterface {
 
     // location
-    Observable<List<String>> locations(double latitude, double longitude, String query, int limit, int radius);
+    Observable<List<Location>> locations(double latitude, double longitude, String query, int limit, int radius);
 }

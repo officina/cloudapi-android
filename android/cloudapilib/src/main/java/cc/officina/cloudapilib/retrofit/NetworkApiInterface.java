@@ -5,6 +5,7 @@ import android.support.annotation.StringDef;
 import java.lang.annotation.Retention;
 import java.util.List;
 
+import cc.officina.cloudapilib.model.Location;
 import retrofit2.http.GET;
 import retrofit2.http.Query;
 import rx.Observable;
@@ -38,9 +39,9 @@ public interface NetworkApiInterface {
     // location
 
     @GET("api/locations")
-    Observable<List<String>> locations(@Query(value = "latitude", encoded = PATH_VALUE_ENCODED) double latitude,
-                                       @Query(value = "longitude", encoded = PATH_VALUE_ENCODED) double longitude,
-                                       @Query(value = "query", encoded = PATH_VALUE_ENCODED) String query,
-                                       @Query(value = "limit", encoded = PATH_VALUE_ENCODED) int limit,
-                                       @Query(value = "radius", encoded = PATH_VALUE_ENCODED) int radius);
+    Observable<List<Location>> locations(@Query(value = "latitude", encoded = PATH_VALUE_ENCODED) double latitude,
+                                         @Query(value = "longitude", encoded = PATH_VALUE_ENCODED) double longitude,
+                                         @Query(value = "query", encoded = PATH_VALUE_ENCODED) String query,
+                                         @Query(value = "limit", encoded = PATH_VALUE_ENCODED) int limit,
+                                         @Query(value = "radius", encoded = PATH_VALUE_ENCODED) int radius);
 }
