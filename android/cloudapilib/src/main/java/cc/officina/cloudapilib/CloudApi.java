@@ -508,6 +508,18 @@ public class CloudApi {
         return settings.getString("token", "");
     }
 
+    public void setAuthorizationToken(String token) {
+        settings.edit().putString("token", token).apply();
+    }
+
+    public String getUsername() {
+        return settings.getString("login", "");
+    }
+
+    public String getPassword() {
+        return settings.getString("password", "");
+    }
+
     private String buildPath(String endpoint, Map<String, Object> params) {
         endpoint = endpoint + "?";
         if (params != null && !params.isEmpty()) {
