@@ -9,7 +9,7 @@ android {
         minSdkVersion 19
         targetSdkVersion 26
         versionCode 1
-        versionName "1.0"
+        versionName "1.1.0"
 
     }
 
@@ -23,12 +23,12 @@ android {
 }
 
 dependencies {
-    compile fileTree(dir: 'libs', include: ['*.jar'])
-    testCompile 'junit:junit:4.12'
-    compile 'androidx.appcompat:appcompat:1.0.0-beta01'
-    compile 'com.squareup.okhttp3:okhttp:3.8.1'
-    compile 'com.google.code.gson:gson:2.8.1'
-    compile 'io.realm:realm-android-library:3.7.2'
-    compile 'com.loopj.android:android-async-http:1.4.9'
-    implementation 'androidx.annotation:annotation:1.0.0-beta01'
+    api fileTree(dir: 'libs', include: ['*.jar'])
+    testImplementation 'junit:junit:4.12'
+    api 'androidx.appcompat:appcompat:1.0.0-beta01'
+    api 'com.squareup.okhttp3:okhttp:3.8.1'
+    api 'com.google.code.gson:gson:2.8.1'
+    api 'io.realm:realm-android-library:3.7.2'
+    api 'com.loopj.android:android-async-http:1.4.9'
+    api 'androidx.annotation:annotation:1.0.0-beta01'
 }
