@@ -3,7 +3,7 @@ package cc.officina.cloudapilib;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
+import android.text.TextUtils;
 import android.util.Base64;
 import android.util.Log;
 
@@ -31,11 +31,8 @@ import io.realm.Realm;
 public class CloudApi {
     //private String hostName = "https://bk-test.nowr.in/";
     private static CloudApi instance = null;
-    private SharedPreferences settings;
-    private SharedPreferences.Editor editor;
     private AuthenticationType authenticationType = AuthenticationType.Standard;
     private Context context;
-    private String settingsString;
     private AsyncHttpClient client = new AsyncHttpClient();
     public static final String PASSWORD_ERROR = "password-error";
 
@@ -53,11 +50,6 @@ public class CloudApi {
         // Exists only to defeat instantiation.
     }
 
-    public static void setSettingsString(String settingsString) {
-        instance.settingsString = settingsString;
-        instance.settings = configSharedPref(instance.settingsString, instance.context);
-    }
-
     public static void init(Context context) {
         if (instance == null) {
             instance = new CloudApi();
@@ -67,6 +59,8 @@ public class CloudApi {
             if (System.getProperty("https.proxyHost") != null && System.getProperty("https.proxyPort") != null) {
                 instance.client.setProxy(System.getProperty("http.proxyHost"), Integer.parseInt(System.getProperty("http.proxyPort")));
             }
+
+            PreferencesManager.init(context);
         }
     }
 
@@ -104,11 +98,11 @@ public class CloudApi {
     }
 
     private String getHostName() {
-        return settings.getString("hostName", "");
+        return PreferencesManager.getHostName();
     }
 
     public void setHostName(String hostName) {
-        settings.edit().putString("hostName", hostName).apply();
+        PreferencesManager.storeHostName(hostName);
     }
 
     public AuthenticationType getAuthenticationType() {
@@ -132,7 +126,6 @@ public class CloudApi {
     }
 
     private void authenticate(String path, Map<String, String> headers, Map<String, Object> params, final RunnableCallback callback) {
-        editor = settings.edit();
         if (authenticationType == AuthenticationType.Oauth2) {
             try {
                 if (params != null) {
@@ -143,17 +136,17 @@ public class CloudApi {
                         byte[] data = (clientId + ":" + clientSecret).getBytes();
                         authorization = "Basic " + Base64.encodeToString(data, Base64.DEFAULT);
                         authorization = authorization.trim();
-                        params.put("refresh_token", settings.getString("refresh_token", ""));
-                        params.put("scope", settings.getString("scope", ""));
+                        params.put("refresh_token", PreferencesManager.getRefreshToken());
+                        params.put("scope", PreferencesManager.getScope());
                         headers.put("Authorization", authorization);
                     }
                 } else {
                     params = new HashMap<>();
                     params.put("grant_type", "refresh_token");
-                    params.put("client_id", settings.getString("clientId", ""));
-                    params.put("client_secret", settings.getString("clientSecret", ""));
-                    params.put("refresh_token", settings.getString("refresh_token", ""));
-                    params.put("scope", settings.getString("scope", ""));
+                    params.put("client_id", PreferencesManager.getClientId());
+                    params.put("client_secret", PreferencesManager.getClientSecret());
+                    params.put("refresh_token", PreferencesManager.getRefreshToken());
+                    params.put("scope", PreferencesManager.getScope());
                     String authorization = "";
                     String clientId = params.get("client_id").toString();
                     String clientSecret = params.get("client_secret").toString();
@@ -182,18 +175,16 @@ public class CloudApi {
                     if (authenticationType == AuthenticationType.Standard || authenticationType == AuthenticationType.Facebook) {
                         try {
                             Log.d("CloudApi", "onSuccess: " + statusCode + " token: " + response.getString("token"));
-                            editor.putString("token", response.getString("token"));
-                            editor.putBoolean("isAuth", true);
-                            editor.apply();
+                            PreferencesManager.storeToken(response.getString("token"));
+                            PreferencesManager.storeIsAuth(true);
                         } catch (JSONException e) {
                             e.printStackTrace();
                         }
                     } else if (authenticationType == AuthenticationType.Oauth2) {
                         try {
-                            editor.putString("token", response.getString("access_token"));
-                            editor.putString("refresh_token", response.getString("refresh_token"));
-                            editor.putBoolean("isAuth", true);
-                            editor.apply();
+                            PreferencesManager.storeToken(response.getString("access_token"));
+                            PreferencesManager.storeRefreshToken(response.getString("refresh_token"));
+                            PreferencesManager.storeIsAuth(true);
                         } catch (JSONException e) {
                             e.printStackTrace();
                         }
@@ -210,8 +201,7 @@ public class CloudApi {
                 callback.failure(statusCode, errorResponse);
             }
         });
-        editor.putString("auth_type", authenticationType.toString());
-        editor.apply();
+        PreferencesManager.storeAuthType(authenticationType.toString());
     }
 
     private void authenticateFacebook(Map<String, String> headers, Map<String, Object> params, RunnableCallback callback) {
@@ -235,8 +225,8 @@ public class CloudApi {
 
     private void loginAndAction(final String endpoint, final Method method, final Map<String, Object> parameters, final ParameterEncoding encoding, final Map<String, String> headers, final FunOrigin funOrigin, final RunnableCallback callback) {
         Map<String, Object> params = new HashMap<>();
-        params.put("username", settings.getString("login", ""));
-        params.put("password", settings.getString("password", ""));
+        params.put("username", PreferencesManager.getUsername());
+        params.put("password", PreferencesManager.getPassword());
         authenticate(new HashMap<String, String>(), params, new RunnableCallback() {
             @Override
             public void success(int statusCode, Object responseObject) {
@@ -252,7 +242,6 @@ public class CloudApi {
                     //se entro in questa casistica significa che le credenziali dell'account sono state cambiate
                     // nel server e non in locale quindi ho bisogno che l'utente riesegua il login
                     client.cancelAllRequests(true);
-                    settings.edit().clear().apply();
                     Realm.init(context);
                     Realm realm = Realm.getDefaultInstance();
                     realm.beginTransaction();
@@ -384,23 +373,24 @@ public class CloudApi {
             if (headers.get("Content-Type") == null) {
                 headers.put("Content-Type", "application/json");
             }
-            if (settings == null) {
-                settings = configSharedPref(settingsString, context);
-            }
-            switch (authenticationType) {
-                case Facebook:
-                    headers.put("X-Auth-Token", getAuthorizationToken());
-                    break;
-                case Standard:
-                    headers.put("X-Auth-Token", getAuthorizationToken());
-                    break;
-                case Oauth2:
-                    //dovrebbe già avere l'header
-                    headers.put("Authorization", "Bearer " + getAuthorizationToken());
-                    break;
-                default:
-                    headers.put("Authorization", "");
-                    break;
+
+            String authorizationToken = getAuthorizationToken();
+            if (!TextUtils.isEmpty(authorizationToken)) {
+                switch (authenticationType) {
+                    case Facebook:
+                        headers.put("X-Auth-Token", authorizationToken);
+                        break;
+                    case Standard:
+                        headers.put("X-Auth-Token", authorizationToken);
+                        break;
+                    case Oauth2:
+                        //dovrebbe già avere l'header
+                        headers.put("Authorization", "Bearer " + authorizationToken);
+                        break;
+                    default:
+                        headers.put("Authorization", "");
+                        break;
+                }
             }
         }
         buildHeaders(headers);
@@ -505,19 +495,28 @@ public class CloudApi {
     }
 
     public String getAuthorizationToken() {
-        return settings.getString("token", "");
+        return PreferencesManager.getToken();
     }
 
     public void setAuthorizationToken(String token) {
-        settings.edit().putString("token", token).apply();
+        PreferencesManager.storeToken(token);
     }
 
     public String getUsername() {
-        return settings.getString("login", "");
+        return PreferencesManager.getUsername();
     }
 
     public String getPassword() {
-        return settings.getString("password", "");
+        return PreferencesManager.getPassword();
+    }
+
+    public void notifyLogout() {
+        PreferencesManager.removeToken();
+        PreferencesManager.removeRefreshToken();
+        PreferencesManager.removeUsername();
+        PreferencesManager.removePassword();
+        PreferencesManager.removeAuthType();
+        PreferencesManager.removeIsAuth();
     }
 
     private String buildPath(String endpoint, Map<String, Object> params) {
@@ -528,10 +527,6 @@ public class CloudApi {
             }
         }
         return endpoint;
-    }
-
-    public static SharedPreferences configSharedPref(String appPackage, Context context) {
-        return context.getSharedPreferences(appPackage, Context.MODE_PRIVATE);
     }
 }
 
