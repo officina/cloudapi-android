@@ -24,16 +24,16 @@ import android.content.SharedPreferences;
  *
  * @author Umberto Marini
  */
-public class PreferencesManager {
+public class CloudApiPreferencesManager {
 
     private static SharedPreferences sPrefs;
 
-    private PreferencesManager() {
+    private CloudApiPreferencesManager() {
         //empty private coordinator to hide the implicit public one
     }
 
     public static void init(Context context) {
-        sPrefs = context.getSharedPreferences(context.getPackageName(), Context.MODE_PRIVATE);
+        sPrefs = context.getSharedPreferences(context.getPackageName() + "_cloudapi", Context.MODE_PRIVATE);
     }
 
     /**
@@ -117,7 +117,6 @@ public class PreferencesManager {
         sPrefs.edit().remove(PrefsKeys.CLIENT_ID).apply();
     }
 
-
     public static String getClientSecret() {
         return sPrefs.getString(PrefsKeys.CLIENT_SECRET, "");
     }
@@ -178,4 +177,16 @@ public class PreferencesManager {
         sPrefs.edit().remove(PrefsKeys.PASSWORD).apply();
     }
 
+    public static void clear() {
+        removeAuthType();
+        removeClientId();
+        removeClientSecret();
+        removeHostName();
+        removeIsAuth();
+        removePassword();
+        removeRefreshToken();
+        removeScope();
+        removeToken();
+        removeUsername();
+    }
 }

@@ -60,7 +60,7 @@ public class CloudApi {
                 instance.client.setProxy(System.getProperty("http.proxyHost"), Integer.parseInt(System.getProperty("http.proxyPort")));
             }
 
-            PreferencesManager.init(context);
+            CloudApiPreferencesManager.init(context);
         }
     }
 
@@ -98,11 +98,11 @@ public class CloudApi {
     }
 
     private String getHostName() {
-        return PreferencesManager.getHostName();
+        return CloudApiPreferencesManager.getHostName();
     }
 
     public void setHostName(String hostName) {
-        PreferencesManager.storeHostName(hostName);
+        CloudApiPreferencesManager.storeHostName(hostName);
     }
 
     public AuthenticationType getAuthenticationType() {
@@ -136,17 +136,17 @@ public class CloudApi {
                         byte[] data = (clientId + ":" + clientSecret).getBytes();
                         authorization = "Basic " + Base64.encodeToString(data, Base64.DEFAULT);
                         authorization = authorization.trim();
-                        params.put("refresh_token", PreferencesManager.getRefreshToken());
-                        params.put("scope", PreferencesManager.getScope());
+                        params.put("refresh_token", CloudApiPreferencesManager.getRefreshToken());
+                        params.put("scope", CloudApiPreferencesManager.getScope());
                         headers.put("Authorization", authorization);
                     }
                 } else {
                     params = new HashMap<>();
                     params.put("grant_type", "refresh_token");
-                    params.put("client_id", PreferencesManager.getClientId());
-                    params.put("client_secret", PreferencesManager.getClientSecret());
-                    params.put("refresh_token", PreferencesManager.getRefreshToken());
-                    params.put("scope", PreferencesManager.getScope());
+                    params.put("client_id", CloudApiPreferencesManager.getClientId());
+                    params.put("client_secret", CloudApiPreferencesManager.getClientSecret());
+                    params.put("refresh_token", CloudApiPreferencesManager.getRefreshToken());
+                    params.put("scope", CloudApiPreferencesManager.getScope());
                     String authorization = "";
                     String clientId = params.get("client_id").toString();
                     String clientSecret = params.get("client_secret").toString();
@@ -175,16 +175,16 @@ public class CloudApi {
                     if (authenticationType == AuthenticationType.Standard || authenticationType == AuthenticationType.Facebook) {
                         try {
                             Log.d("CloudApi", "onSuccess: " + statusCode + " token: " + response.getString("token"));
-                            PreferencesManager.storeToken(response.getString("token"));
-                            PreferencesManager.storeIsAuth(true);
+                            CloudApiPreferencesManager.storeToken(response.getString("token"));
+                            CloudApiPreferencesManager.storeIsAuth(true);
                         } catch (JSONException e) {
                             e.printStackTrace();
                         }
                     } else if (authenticationType == AuthenticationType.Oauth2) {
                         try {
-                            PreferencesManager.storeToken(response.getString("access_token"));
-                            PreferencesManager.storeRefreshToken(response.getString("refresh_token"));
-                            PreferencesManager.storeIsAuth(true);
+                            CloudApiPreferencesManager.storeToken(response.getString("access_token"));
+                            CloudApiPreferencesManager.storeRefreshToken(response.getString("refresh_token"));
+                            CloudApiPreferencesManager.storeIsAuth(true);
                         } catch (JSONException e) {
                             e.printStackTrace();
                         }
@@ -201,7 +201,7 @@ public class CloudApi {
                 callback.failure(statusCode, errorResponse);
             }
         });
-        PreferencesManager.storeAuthType(authenticationType.toString());
+        CloudApiPreferencesManager.storeAuthType(authenticationType.toString());
     }
 
     private void authenticateFacebook(Map<String, String> headers, Map<String, Object> params, RunnableCallback callback) {
@@ -225,8 +225,8 @@ public class CloudApi {
 
     private void loginAndAction(final String endpoint, final Method method, final Map<String, Object> parameters, final ParameterEncoding encoding, final Map<String, String> headers, final FunOrigin funOrigin, final RunnableCallback callback) {
         Map<String, Object> params = new HashMap<>();
-        params.put("username", PreferencesManager.getUsername());
-        params.put("password", PreferencesManager.getPassword());
+        params.put("username", CloudApiPreferencesManager.getUsername());
+        params.put("password", CloudApiPreferencesManager.getPassword());
         authenticate(new HashMap<String, String>(), params, new RunnableCallback() {
             @Override
             public void success(int statusCode, Object responseObject) {
@@ -495,28 +495,28 @@ public class CloudApi {
     }
 
     public String getAuthorizationToken() {
-        return PreferencesManager.getToken();
+        return CloudApiPreferencesManager.getToken();
     }
 
     public void setAuthorizationToken(String token) {
-        PreferencesManager.storeToken(token);
+        CloudApiPreferencesManager.storeToken(token);
     }
 
     public String getUsername() {
-        return PreferencesManager.getUsername();
+        return CloudApiPreferencesManager.getUsername();
     }
 
     public String getPassword() {
-        return PreferencesManager.getPassword();
+        return CloudApiPreferencesManager.getPassword();
     }
 
     public void notifyLogout() {
-        PreferencesManager.removeToken();
-        PreferencesManager.removeRefreshToken();
-        PreferencesManager.removeUsername();
-        PreferencesManager.removePassword();
-        PreferencesManager.removeAuthType();
-        PreferencesManager.removeIsAuth();
+        CloudApiPreferencesManager.removeToken();
+        CloudApiPreferencesManager.removeRefreshToken();
+        CloudApiPreferencesManager.removeUsername();
+        CloudApiPreferencesManager.removePassword();
+        CloudApiPreferencesManager.removeAuthType();
+        CloudApiPreferencesManager.removeIsAuth();
     }
 
     private String buildPath(String endpoint, Map<String, Object> params) {
